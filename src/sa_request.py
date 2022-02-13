@@ -4,10 +4,10 @@ import mimetypes
 import re
 import os
 import json
-from typing import Dict, Any, List, Union, Optional
+from typing import Dict, Any, List, Union, Optional, Tuple
 
-from src.exceptions import ParamNotFoundError, ValueOutOfRangeError, RequestValidationError, RangeFileWrapper, \
-    InvalidParamFormatError, ObjectNotFoundError
+from src.exceptions import ParamNotFoundError, ValueOutOfRangeError, RequestValidationError, \
+    InvalidParamFormatError, ObjectNotFoundError, AuthNeedError
 
 try:
     import khayyam
@@ -17,18 +17,13 @@ except ImportError:
 from datetime import date
 
 from uuid import uuid4
-from wsgiref.util import FileWrapper
 
 import unicodedata
 from django.core import signing
 from django.contrib.auth.models import User
 from django.db.models import QuerySet, Model
-from django.http import HttpResponse, StreamingHttpResponse, QueryDict
-from django.http.response import HttpResponseBadRequest
-from django.shortcuts import redirect, render
-from django.urls import reverse
+from django.http import HttpResponse, QueryDict
 from django.utils.deprecation import MiddlewareMixin
-from django.utils.timezone import make_aware
 from django.utils.translation import gettext as _
 from django.views import View
 
@@ -82,36 +77,6 @@ class SARequest(View):
     """
     Class to handle generic requests
     """
-
-    def stream_file2(self, path):
-        x = FileWrapper(open(path, 'rb'))
-        response = HttpResponse(x, content_type='video/mp4')
-        # response['Content-Disposition'] = 'attachment; filename=my_video.mp4'
-        return response
-
-    def stream_file(self, path):
-        range_header = self.request.META.get('HTTP_RANGE', '').strip()
-        range_re = re.compile(r'bytes\s*=\s*(\d+)\s*-\s*(\d*)', re.I)
-        range_match = range_re.match(range_header)
-        size = os.path.getsize(path)
-        content_type, encoding = mimetypes.guess_type(path)
-        content_type = content_type or 'application/octet-stream'
-        if range_match:
-            first_byte, last_byte = range_match.groups()
-            first_byte = int(first_byte) if first_byte else 0
-            last_byte = int(last_byte) if last_byte else size - 1
-            if last_byte >= size:
-                last_byte = size - 1
-            length = last_byte - first_byte + 1
-            xx = RangeFileWrapper(open(path, 'rb'), offset=first_byte, length=length)
-            resp = StreamingHttpResponse(xx, status=206, content_type=content_type)
-            resp['Content-Length'] = str(length)
-            resp['Content-Range'] = 'bytes %s-%s/%s' % (first_byte, last_byte, size)
-        else:
-            resp = StreamingHttpResponse(FileWrapper(open(path, 'rb')), content_type=content_type)
-            resp['Content-Length'] = str(size)
-        resp['Accept-Ranges'] = 'bytes'
-        return resp
 
     def get_store(self) -> QueryDict:
         """
@@ -424,7 +389,7 @@ class SARequest(View):
 
         res = []
         for a in x:
-            z = self.decrypt_value(a)
+            z = signing.dumps(a)
             if z:
                 res.append(z)
 
@@ -706,15 +671,45 @@ class SARequest(View):
         res = model_class.objects.filter(**{key: vl}).first()
         if not res:
             return self._raise_object_not_found(key, raise_error, default)
-
-    def decrypt_from_request(self, key_name, name, base_class, raise_error=False, default=None):
-        x = self.get_string(name, raise_error, default)
-        if not x:
-            return default
-        res = self.get_decrypted_object({key_name: x}, base_class)
         return res
 
-    def json(self):
+    def decrypt_from_request(self,
+                             key_name: str,
+                             name: str,
+                             model_class: QuerySet,
+                             raise_error: bool = False,
+                             default: Model = None
+                             ) -> Optional[Model]:
+
+        """
+        Recover DB data from request.
+        e.g. pk of User table is encrypted and is sent by user with "user_id" name. So that would be:
+        decrypt_from_request("pk", "user_id", User)
+
+        :param key_name: Model field name to match
+        :param name: item name in QueryDict in GET or POST method
+        :param model_class: Model class to find data from
+        :param raise_error: Raise error if data not found
+        :param default: Default value to return if raise error is False
+        :return: an object inherited from Model
+        """
+
+        x = self.get_string(name, raise_error)
+
+        if not x:
+            return default
+        res = self.get_decrypted_object({key_name: x}, model_class)
+        return res
+
+    def json(self) -> Dict:
+        """
+        Convert body of request into json. If method is GET or body is not set, then an empty dict will be the
+        result
+
+        :return: Returns body of request as json.
+        :rtype: Dict
+        """
+
         if self.request.method == 'GET' or len(self.request.POST) > 0 or not self.request.body:
             return {}
         try:
@@ -723,7 +718,25 @@ class SARequest(View):
         except Exception:
             return {}
 
-    def handle_upload(self, base_path, add_date=False, add_user=False, random_name=False):
+    def handle_upload(self,
+                      base_path: str,
+                      add_date: bool = False,
+                      add_user: bool = False,
+                      random_name: bool = False
+                      ) -> List[FileUploadResult]:
+        """
+        Handles sent file by user and saves it into base_path. You can also add date, username and
+        choose if save file with it's original name or a random name.
+
+        :param base_path: base folder path to store data. This path MUST exists.
+        :param add_date: If set to True, then a folder with name of today will created.
+        :param add_user: If set to True, then a folder with username of file uploader will created.
+        :param random_name: If set to True, the file name will be set to a random name.
+        :return: A list of uploaded files with their properties.
+        :rtype: List[FileUploadResult]
+        """
+
+        # Creating base folders
         if not os.path.exists(base_path):
             os.mkdir(base_path)
         today = str(date.today())
@@ -735,6 +748,8 @@ class SARequest(View):
             today_path = base_path
         if add_user:
             if not self.request.user.is_authenticated():
+
+                # if user is not authenticated, then use ALL as the name
                 user_path = os.path.join(today_path, 'ALL')
             else:
                 user_path = os.path.join(today_path, str(self.request.user.pk))
@@ -743,6 +758,8 @@ class SARequest(View):
         else:
             user_path = base_path
         res = []
+
+        # Start to write files
         for f in self.request.FILES:
             try:
                 n = str(self.request.FILES.get(f))
@@ -759,114 +776,57 @@ class SARequest(View):
                 if self.request.user.is_authenticated():
                     uid = self.request.user.pk
                 res.append(FileUploadResult(uid, today, t, n, file_size))
-            except Exception as ex:
+            except Exception:
                 continue
         return res
 
-    def resolve_ip_address(self):
+    def resolve_ip_address(self) -> str:
+        """
+        Resolves requester ip address
+
+        :return: User ip address
+        """
+
+        # Check if user is using a proxy
         x_forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded_for:
             ip = x_forwarded_for.split(',')[0]
         else:
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
-        # return get_client_ip(self.request)
 
     ip_address = property(resolve_ip_address)
 
-    def validate_request(self, methods=('get', 'post'), check_referer=False, auth=False, superuser=False,
-                         staff=False, perm=''):
-        """
-        Check the current request for the params
-        :param methods: Accepted methods
-        :param check_referer: Check the user referrer
-        :param auth: Check if the user is authenticated or not. if not AuthenticationNeededError will raise
-        :param superuser: Check if the user is superuser or not. If not RequestValidationError will raise
-        :param staff: Check if the user is staff or not. if not RequestValidationError will raise
-        :param perm: Checks for a specified permission. Multi perm can be separated with a pip ( | )
-        :return: None
-        """
-
-        request = self.request
-        if request.method.lower() not in methods:
-            raise RequestValidationError(_('Invalid request Method'), ())
-        if check_referer:
-            rx = request.META.get('HTTP_REFERER')
-            if not rx:
-                raise RequestValidationError(_('Direct Call is not permitted'), ())
-            if request.build_absolute_uri('/') not in rx:
-                raise RequestValidationError(_('You can not bypass site structure'), ())
-        if auth:
-            if not request.user.is_authenticated:
-                raise AuthenticationNeededError(request)
-        if superuser:
-            if not request.user.is_superuser:
-                raise AuthenticationNeededError(request)
-        if staff:
-            if not request.user.is_staff:
-                raise AuthenticationNeededError(request)
-        if perm:
-            perms = perm.split('|')
-            is_granter = False
-            for p in perms:
-                if request.user.has_perm(p):
-                    is_granter = True
-                    break
-            if not is_granter:
-                raise AuthenticationNeededError(request)
-
-
-class RequestParamValidator(MiddlewareMixin, SARequest):
-
-    def process_request(self, request):
-        self.request = request
-        request.SAR = self
-
-
-class SARequestMixin(View, SARequest):
-
-    def get_object_pk(self, base_class, name="pk", raise_error=False, default_value=None):
-        if name is None:
-            raise ParamNotFoundException(_("Programming Error"), ("Name",), "Name")
-        if base_class is None:
-            raise ParamNotFoundException(_("Programming Error"), ("Base Class",), "base_class")
-        x = self.get_int(name, raise_error)
-        if x is None:
-            return default_value
-        res = base_class.objects.filter(pk=x).first()
-        if res is None:
-            if raise_error:
-                raise ParamNotFoundException(_("Object not found!"), (name,), name)
-            return default_value
-        return res
-
-    def validate_user_object(self, user_object, raise_error=False) -> bool:
-        if user_object is None:
-            return False
-        if not self.request.user.is_authenticated:
-            if raise_error:
-                raise AuthenticationNeededError(self.request)
-            return False
-        if user_object.user.pk != self.request.user.pk:
-            if not self.request.user.is_superuser:
-                if raise_error:
-                    raise AuthenticationNeededError(self.request)
-                return False
-        return True
-
     @staticmethod
     def slugify(value: str):
-        value = str(value)
-        # if allow_unicode:
+        """
+        Slugify data from request
+
+        :param value: Value to slugify. e.g. site title
+        :return: Slugify value
+        :rtype: str
+        """
+
         value = unicodedata.normalize('NFKC', value)
-        # else:
-        #     value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('ascii')
         value = re.sub(r'[^\w\s-]', '', value.lower()).strip()
         return re.sub(r'[\s]+', '-', value)
 
-    def respond_as_attachment(self, file_path, original_filename):
+    def respond_as_attachment(self,
+                              file_path: str,
+                              original_filename: str
+                              ) -> HttpResponse:
+        """
+        Response file to user. This method is good for small chunks of file.
+
+        :param file_path: File path to read
+        :param original_filename:  Original name of the file
+        :return: HttpResponse
+        :rtype: HttpResponse
+        """
+
         if original_filename is None:
             original_filename = 'unknown_file'
+
         fp = codecs.open(file_path.encode('utf-8'), 'rb')
         response = HttpResponse(fp.read())
         fp.close()
@@ -893,77 +853,62 @@ class SARequestMixin(View, SARequest):
         response['Content-Disposition'] = 'attachment; ' + filename_header
         return response
 
-    def send_json_data(self, x_data, dump=False):
-        try:
-            res = {'data': x_data}
-            x = json.dumps(res)
-            if dump:
-                print(x)
-            return HttpResponse(x, content_type='text/json')
-        except Exception as ex:
-            print(ex.args)
-            return HttpResponseBadRequest(_("System Error"))
+    def validate_request(self,
+                         methods: Tuple = ('get', 'post'),
+                         check_referer: bool = False,
+                         auth: bool = False,
+                         superuser: bool = False,
+                         staff: bool = False,
+                         perm: str = ''
+                         ) -> None:
+        """
+        Validate request against referer, auth, and permissions.
+        E.g. validate_request(staff=True, perm="user.add_user|user.change_user")
 
-    def send_redirect(self, view_name):
-        return redirect(reverse(view_name))
+        :param methods: Acceptable methods. it's not usable for class base views.
+        :param check_referer: Check if user entered the address directly or with a link.
+        :param auth: Check if the user is authenticated or not. if not AuthenticationNeededError will raise
+        :param superuser: Check if the user is superuser or not. If not RequestValidationError will raise
+        :param staff: Check if the user is staff or not. if not RequestValidationError will raise
+        :param perm: Checks for a specified permission. Multi perm can be separated with a pip ( | )
+        :return: None
+        """
 
-    def send_error(self, error, param="", force_json=False, status=500):
-        is_ajax = self.request.is_ajax
-        if is_ajax or force_json:
-            res = {'message': error, 'param': param}
-            return HttpResponseBadRequest(json.dumps(res), content_type='text/json')
-        if status == 404:
-            return render(self.request, 'base/general_error.html', {'error': error})
-        return render(self.request, 'base/general_error.html', {'error': error})
+        request = self.request
+        if request.method.lower() not in methods:
+            raise RequestValidationError(_('Invalid request Method'), ())
+        if check_referer:
+            rx = request.META.get('HTTP_REFERER')
+            if not rx:
+                raise RequestValidationError(_('Direct Call is not permitted'), ())
+            if request.build_absolute_uri('/') not in rx:
+                raise RequestValidationError(_('You can not bypass site structure'), ())
 
-    def send_success(self, message=None, force_json=False):
-        is_ajax = self.request.is_ajax()
-        if is_ajax or force_json:
-            res = {'message': message}
-            return HttpResponse(json.dumps(res), content_type='text/json')
-        else:
-            if message:
-                return HttpResponse(message)
-            return HttpResponse('200')
-        # return render(self.request, 'base/general_error.html', {'message': message})
+        if auth:
 
-    def send_not_found(self):
-        return self.send_error(_('Item Not Found'), status=404)
+            if not request.user.is_authenticated:
+                raise AuthNeedError(request)
+        if superuser:
+            if not request.user.is_superuser:
+                raise AuthNeedError(request)
+        if staff:
+            if not request.user.is_staff:
+                raise AuthNeedError(request)
+
+        # Check for permissions
+        if perm:
+            perms = perm.split('|')
+            is_granter = False
+            for p in perms:
+                if request.user.has_perm(p):
+                    is_granter = True
+                    break
+            if not is_granter:
+                raise AuthNeedError(request)
 
 
-class SADeleteRequest(SARequestMixin):
+class RequestParamValidator(MiddlewareMixin, SARequest):
 
-    object_model = None
-
-    def show_confirm(self, request, item, redirect_to):
-        if not self.auth():
-            return redirect("web_index")
-        if not self.object_model:
-            return self.send_not_found()
-        ix = self.object_model.objects.filter(pk=item).first()
-        if not ix:
-            return redirect(redirect_to)
-        return render(request, "base/delete_item.html", {"item": ix, "cancel_address": reverse(redirect_to)})
-
-    def auth(self):
-        raise NotImplementedError()
-
-    def delete(self):
-        if not self.auth():
-            raise AuthenticationNeededError(self.request)
-        if not self.object_model:
-            return self.send_not_found()
-        try:
-            z = self.get_int("pk", True)
-            self.object_model.objects.filter(pk=z).delete()
-            return self.send_success()
-        except ParamNotFoundException as e:
-            return e.get_response()
-        except Exception:
-            return self.send_error(_("System Error"))
-
-    def post(self, request, redirect_to=None):
-        self.delete()
-        if redirect_to is None:
-            return self.send_success()
-        return redirect(redirect_to)
+    def process_request(self, request):
+        self.request = request
+        request.SAR = self
