@@ -1,4 +1,3 @@
-import os
 from typing import Tuple
 
 from django.http import JsonResponse
@@ -103,34 +102,3 @@ class ObjectNotFoundError(RequestProcessingErrorBase):
 
     def __init__(self, name):
         super(ObjectNotFoundError, self).__init__(_("Data you are looking for is not exists."), (), name, 404)
-
-
-class RangeFileWrapper(object):
-    def __init__(self, filelike, blksize=1024, offset=0, length=None):
-        self.filelike = filelike
-        self.filelike.seek(offset, os.SEEK_SET)
-        self.remaining = length
-        self.blksize = blksize
-
-    def close(self):
-        if hasattr(self.filelike, 'close'):
-            self.filelike.close()
-
-    def __iter__(self):
-        return self
-
-    def next(self):
-        if self.remaining is None:
-            # If remaining is None, we're reading the entire file.
-            data = self.filelike.read(self.blksize)
-            if data:
-                return data
-            raise StopIteration()
-        else:
-            if self.remaining <= 0:
-                raise StopIteration()
-            data = self.filelike.read(min(self.remaining, self.blksize))
-            if not data:
-                raise StopIteration()
-            self.remaining -= len(data)
-            return data

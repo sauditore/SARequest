@@ -1,5 +1,5 @@
 # SARequest
-Simple Request Parser for django generic views.
+Simple, compact and useful library to read request parameters in django framework. 
 
 ## Install
 There are 2 methods to install this:
@@ -11,7 +11,7 @@ pip install sa_request
 
 2- Install from source code:
 ```
-git clone https://
+git clone https://github.com/sauditore/SARequest.git
 python setup.py install
 ```
 
@@ -19,7 +19,7 @@ python setup.py install
 To use this library just create a class and inherit from sa_request main class
 
 ```python
-from sa_request import SARequest
+from sa_request.helper import SARequest
 from sa_request.exceptions import ParamNotFoundError, AuthNeedError
 
 
@@ -94,43 +94,89 @@ def get_string(name: str,
 <hr/>
 
 ### paginate:
-Paginate query set or list and returns it to use in a template. Queryset or data key name in dictionary is
-the same data_name provided. Per Page parameter is read from "pp" querystring. Current Page is also
-read from "cp" querystring.
+Paginate query set or list and returns it to use in a template. Queryset or data key name in a dictionary is
+the same ``data_name`` provided. Per Page parameter is read from ``pp`` querystring. Current Page is also
+read from ``cp`` querystring.
 Result contains these keys:
 
-1- data_name: Contains paginated data
+1- ``data_name``: Contains paginated data
 
-2- next: Next number to pass to "cp" parameter to view next page.
+2- ``next``: Next number to pass to ``cp`` parameter to view next page.
 
-3- back: Back number to pass to "cp" parameter in querystring to view previous page
+3- ``back``: Back number to pass to ``cp`` parameter in querystring to view previous page
 
-4- current_page: Current page number
+4- ``current_page``: Current page number
 
-5- pages: Total number of pages
+5- ``pages``: Total number of pages
 
-6- last_page: Number of last page to pass to "cp" parameter to view
+6- ``last_page``: Number of last page to pass to ``cp`` parameter to view
 
-7- request: request object to build URL
+7- ``request``: request object to build URL
 
-8- is_last_page: True if reached last page
+8- ``is_last_page``: True if reached last page
 
-9- is_first_page: True if cp is on the first page
+9- ``is_first_page``: True if cp is on the first page
 
-10- total_result: Number of records to view
+10- ``total_result``: Number of records to view
 
-11- next_pages: List of pages to view for the next pages. Each item must pass to cp param to view the page.
+11- ``next_pages``: List of pages to view for the next pages. Each item must pass to cp param to view the page.
 
-12- back_pages: List of pages to view for previous pages. Each item must pass to cp param to view the pate.
+12- ``back_pages``: List of pages to view for previous pages. Each item must pass to cp param to view the pate.
 
 
 ```python
 def paginate(query_set: Union[List, QuerySet],
              data_name: str,
              extra: Dict = None,
-             default_per_page: int = 10):
+             default_per_page: int = 10)
 ```
 <hr/>
-###
-Please note that I'm still developing this and not finished yet!
-Come back soon
+
+#### get_decrypted_list:
+Process request and find objects by name, decrypt and return in a list
+```python
+def get_decrypted_list(name: str,
+                       raise_error: bool = False,
+                       default: List = None
+                       ) -> List
+```
+<hr/>
+
+#### get_int_list:
+Process the request and get a list of int
+```python
+def get_int_list(name: str, 
+                 raise_error: bool = False, 
+                 default: List = ()
+                 ) -> List
+```
+<hr/>
+
+#### get_file_size:
+Convert user input data to file size. e.g. User enters : 1024 MB, you will receive : 1024 * 1024 bytes
+
+```python
+def get_file_size(name: str,
+                 raise_error: bool = False, 
+                 default: float = 0
+                 ) -> float
+```
+<hr/>
+
+#### get_float:
+Get "name" as float
+
+```python
+def get_float(name: str,
+             raise_error: bool = False,
+             default: float = 0.0
+              ) -> float
+```
+
+<hr/>
+
+### Bugs:
+I would be happy if you help me find them.
+
+### TODO:
+Add more useful functions 

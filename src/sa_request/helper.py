@@ -6,7 +6,7 @@ import os
 import json
 from typing import Dict, Any, List, Union, Optional, Tuple
 
-from exceptions import ParamNotFoundError, ValueOutOfRangeError, RequestValidationError, \
+from .exceptions import ParamNotFoundError, ValueOutOfRangeError, RequestValidationError, \
     InvalidParamFormatError, ObjectNotFoundError, AuthNeedError
 
 try:
