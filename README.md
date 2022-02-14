@@ -1,4 +1,4 @@
-# SARequest
+# Django SARequest
 Simple, compact and useful library to read request parameters in django framework. 
 
 ## Install
@@ -30,15 +30,15 @@ class ViewName(SARequest):
         user_int = self.get_int("int_name", False, 100)
         
         # Get str_name from query string. If data was not found then "default_data" will return
-        user_str = self.get_str("str_name", False, "default_data")
+        user_str = self.get_string("str_name", False, "default_data")
         
         # Get float_name from query string. If data was not found then 1.1 will return
-        user_float = self.float("float_name", False, 1.1)
+        user_float = self.get_float("float_name", False, 1.1)
         
         try:
             # If raise_error is set True, then default value ignored
             # and and exception will raise.
-            str_data = self.get_str("parameter_name", True)
+            str_data = self.get_string("parameter_name", True)
             
             # Checks for user permission. If permission not granted then
             # AuthError will raise
