@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setuptools.setup(
-    name="sa_request",
+    name="django-sa-request",
     version="0.9.1b",
     author="Amir Pourjafari",
     author_email="amir.pourjafari@gmail.com",

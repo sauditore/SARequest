@@ -1,4 +1,4 @@
-# Django SARequest
+# Django-SARequest
 Simple, compact and useful library to read request parameters in django framework. 
 
 ## Install
