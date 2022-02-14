@@ -6,7 +6,7 @@ There are 2 methods to install this:
 
 1- Install with pip (Recommended and the easiest way)
 ```
-pip install sa_request
+pip install django-sa-request
 ```
 
 2- Install from source code:
@@ -175,8 +175,8 @@ def get_float(name: str,
 
 <hr/>
 
-### Bugs:
-I would be happy if you help me find them.
+### Contribute:
+You're always welcome to contribute to the project! Please file an issue and send your great PR.
 
 ### TODO:
 Add more useful functions 
