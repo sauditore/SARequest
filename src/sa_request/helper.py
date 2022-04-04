@@ -22,7 +22,7 @@ import unicodedata
 from django.core import signing
 from django.contrib.auth.models import User
 from django.db.models import QuerySet, Model
-from django.http import HttpResponse, QueryDict
+from django.http import HttpResponse, QueryDict, JsonResponse
 from django.utils.deprecation import MiddlewareMixin
 from django.utils.translation import gettext as _
 from django.views import View
@@ -905,6 +905,17 @@ class SARequest(View):
                     break
             if not is_granter:
                 raise AuthNeedError(request)
+
+    def success(self, response: Dict) -> JsonResponse:
+        """
+        Send response to client with status code 200(OK)
+
+        :param response: Response to send to convert to json string.
+        :return: JsonResponse
+        :rtype: JsonResponse
+        """
+        
+        return JsonResponse(response, status=200)
 
 
 class RequestParamValidator(MiddlewareMixin, SARequest):
