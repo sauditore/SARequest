@@ -4,7 +4,7 @@ import mimetypes
 import re
 import os
 import json
-from typing import Dict, Any, List, Union, Optional, Tuple
+from typing import Dict, Any, List, Union, Optional, Tuple, Type
 
 from django.shortcuts import redirect, render
 
@@ -979,6 +979,10 @@ class SADeleteRequest(SARequest):
         :rtype: bool
         """
         raise NotImplementedError()
+
+    @staticmethod
+    def get_config(class_object: Type, key: str, encrypted: bool, field: str):
+        return {"class": class_object, "key": key, "encrypted": encrypted, "field": field}
     
     def config(self) -> Dict:
         """
@@ -989,6 +993,7 @@ class SADeleteRequest(SARequest):
         field -> str: model filed to check key against. For example: name__iexact
         e.g. {"class": User, "key": "pk", "encrypted": True}
         :return: Dict
+        :rtype: Dict
         """
         raise NotImplementedError()
     
