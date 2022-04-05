@@ -925,7 +925,7 @@ class SARequest(View):
             if not is_granter:
                 raise AuthNeedError(request)
 
-    def success(self, response: Dict = None) -> JsonResponse:
+    def response_success(self, response: Dict = None) -> JsonResponse:
         """
         Send response to client with status code 200(OK)
 
@@ -957,7 +957,78 @@ class SARequest(View):
         return HttpResponse(error_message, status=status_code)
 
     def response_redirect(self, address: str) -> Union[HttpResponseRedirect]:
+        """
+        Send redirect to user
+        :param address: Address to redirect. NOTE: address is not view name!
+        :return: HttpResponse
+        :rtype: HttpResponseRedirect
+        """
+        
         return redirect(address)
+
+
+class SADeleteRequest(SARequest):
+    """
+    Delete request
+    """
+    
+    def auth(self) -> bool:
+        """
+        Authenticate user
+        :return: True if current user can delete object
+        :rtype: bool
+        """
+        raise NotImplementedError()
+    
+    def config(self) -> Dict:
+        """
+        Gets a Dict contains configuration of class: 
+        class: Object to read data from
+        key: The key name to read from post
+        encrypted -> bool: If key value is encrypted by django signing. default is False
+        field -> str: model filed to check key against. For example: name__iexact
+        e.g. {"class": User, "key": "pk", "encrypted": True}
+        :return: Dict
+        """
+        raise NotImplementedError()
+    
+    def post(self, request) -> HttpResponse:
+        """
+        Request to delete object
+        :param request: HttpRequest
+        :return: HttpResponse
+        :rtype: HttpResponse
+        """
+
+        if not self.auth():
+            return self.response_error("Permission Denied", status_code=403)
+        config = self.config()
+
+        # Check and validate config
+        if not config:
+            raise ValueError("Config is not correct")
+        if "class" not in config:
+            raise ValueError("Database model object not defined")
+        if "key" not in config:
+            raise ValueError("Key name is not defined")
+        if "encrypted" not in config:
+            config["encrypted"] = False
+        if config["encrypted"]:
+            item = self.get_decrypted_value(config["key"])
+        if "field" not in config:
+            raise ValueError("Field name is not defined")
+        else:
+            item = self.get_string(config["key"])
+        if not item:
+            return self.response_error("Item not found to delete")
+
+        # Try to retrieve object
+        object_to_delete = config["class"].objects.filter({config["field"]: item})
+        try:
+            object_to_delete.delete()
+        except Exception:
+            return self.response_error("Failed to delete item(s)")
+        return self.response_success()
 
 
 class RequestParamValidator(MiddlewareMixin, SARequest):
