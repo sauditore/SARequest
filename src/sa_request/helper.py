@@ -6,6 +6,8 @@ import os
 import json
 from typing import Dict, Any, List, Union, Optional, Tuple
 
+from django.shortcuts import redirect, render
+
 from .exceptions import ParamNotFoundError, ValueOutOfRangeError, RequestValidationError, \
     InvalidParamFormatError, ObjectNotFoundError, AuthNeedError
 
@@ -22,7 +24,7 @@ import unicodedata
 from django.core import signing
 from django.contrib.auth.models import User
 from django.db.models import QuerySet, Model
-from django.http import HttpResponse, QueryDict, JsonResponse
+from django.http import HttpResponse, QueryDict, JsonResponse, HttpResponseRedirect
 from django.utils.deprecation import MiddlewareMixin
 from django.utils.translation import gettext as _
 from django.views import View
@@ -91,8 +93,13 @@ class SARequest(View):
             return self.request.POST
         return QueryDict()
 
+    # Class Properties
     store = property(get_store)
     body = property(lambda self: self.request.body)
+    user = property(lambda self: self.request.user)
+    staff = property(lambda self: self.user.is_staff)
+    superuser = property(lambda self: self.user.is_superuser)
+    logged_in = property(lambda self: self.user.is_authenticated)
 
     @staticmethod
     def _raise_invalid_param_error(name: str, raise_error: bool, default: Any) -> Any:
@@ -158,6 +165,18 @@ class SARequest(View):
         if raise_error:
             raise InvalidParamFormatError(name, valid_example)
         return default
+
+    def response_render(self, template_path: str, context: Optional[Dict] = None) -> HttpResponse:
+        """
+        Return rendered HTML
+
+        :param template_path: path of html
+        :param context: context data
+        :return: Rendered HTML
+        :rtype: HttpResponse
+        """
+
+        return render(self.request, template_path, context=context)
 
     def get_int(self, name: str,
                 raise_error: bool = False,
@@ -906,7 +925,7 @@ class SARequest(View):
             if not is_granter:
                 raise AuthNeedError(request)
 
-    def success(self, response: Dict) -> JsonResponse:
+    def success(self, response: Dict = None) -> JsonResponse:
         """
         Send response to client with status code 200(OK)
 
@@ -914,8 +933,31 @@ class SARequest(View):
         :return: JsonResponse
         :rtype: JsonResponse
         """
-        
+
+        if response is None:
+            response = {}
         return JsonResponse(response, status=200)
+
+    def response_error(self, error_message: str, is_json: bool = True, status_code: int = 500, param_name: str="") -> \
+            Union[JsonResponse, HttpResponse]:
+        """
+        Send response to client with an error. This error can be e.g. a json or a text.
+
+        :param error_message: Error message to send to client
+        :param is_json: True if you want to response with a json
+        :param status_code: Custom status code on error
+        :param param_name: Parameter name if error happened on a parameter. Note: This will append to output
+        when is_json is set to True
+        :return: JsonResponse or HttpResponse
+        :rtype: Union[JsonResponse, HttpResponse]
+        """
+
+        if is_json:
+            return JsonResponse({"message": error_message, "param": param_name}, status=500)
+        return HttpResponse(error_message, status=status_code)
+
+    def response_redirect(self, address: str) -> Union[HttpResponseRedirect]:
+        return redirect(address)
 
 
 class RequestParamValidator(MiddlewareMixin, SARequest):
