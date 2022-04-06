@@ -368,8 +368,14 @@ class SARequest(View):
         is_first_page = current_page == 1
 
         # Calculate next and previous pages.
-        next_pages = {a: (a-1) * per_page for a in range(current_page, current_page + 5) if 0 < a <= page_count}
-        back_pages = {a-1: (a - 2) * per_page for a in range(current_page, current_page - 5, -1) if 1 < a < page_count}
+        links_to_show = 5
+        if page_count <= 5:
+            links_to_show = 10
+
+        next_pages = {a: (a*current_page, (a-1) * per_page) for a in range(current_page, current_page + links_to_show) if 0 < a <= page_count}
+        back_pages = {a-1: (a-1, (a - 2) * per_page) for a in range(current_page, current_page - links_to_show, -1) if 1 < a <= page_count}
+        back_pages = {k: back_pages[k] for k in sorted(back_pages.keys())}
+
         rx = {data_name: res,
               'next': next_link,
               'back': back_link,
@@ -846,7 +852,7 @@ class SARequest(View):
         if original_filename is None:
             original_filename = 'unknown_file'
 
-        fp = codecs.open(file_path.encode('utf-8'), 'rb')
+        fp = codecs.open(str(file_path.encode('utf-8')), 'rb')
         response = HttpResponse(fp.read())
         fp.close()
         f_type, encoding = mimetypes.guess_type(original_filename)
@@ -966,15 +972,26 @@ class SARequest(View):
         
         return redirect(address)
 
+    def has_value(self, name: str) -> bool:
+        """
+        Check if parameter has a value or not
+        :param name: name to check
+        :return: True if any value entered for param
+        :rtype: bool
+        """
+
+        return len(self.get_string(name, default="")) == 0
+
 
 class SADeleteRequest(SARequest):
     """
     Delete request
     """
     
-    def auth(self) -> bool:
+    def auth(self, object_to_delete: Type) -> bool:
         """
         Authenticate user
+        :param object_to_delete: Object that is going to delete
         :return: True if current user can delete object
         :rtype: bool
         """
@@ -1005,8 +1022,6 @@ class SADeleteRequest(SARequest):
         :rtype: HttpResponse
         """
 
-        if not self.auth():
-            return self.response_error("Permission Denied", status_code=403)
         config = self.config()
 
         # Check and validate config
@@ -1020,16 +1035,22 @@ class SADeleteRequest(SARequest):
             config["encrypted"] = False
         if config["encrypted"]:
             item = self.get_decrypted_value(config["key"])
-        if "field" not in config:
-            raise ValueError("Field name is not defined")
         else:
             item = self.get_string(config["key"])
+        if "field" not in config:
+            raise ValueError("Field name is not defined")
+
         if not item:
             return self.response_error("Item not found to delete")
 
         # Try to retrieve object
-        object_to_delete = config["class"].objects.filter({config["field"]: item})
+        object_to_delete = config["class"].objects.filter(**{config["field"]: item}).first()
+
+        if not object_to_delete:
+            return self.response_error("Object not found", status_code=404)
         try:
+            if not self.auth(object_to_delete):
+                return self.response_error("Permission Denied", status_code=403)
             object_to_delete.delete()
         except Exception:
             return self.response_error("Failed to delete item(s)")
