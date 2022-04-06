@@ -238,9 +238,9 @@ class SARequest(View):
         :raise: ParamNotFoundError, ValueOutOfRangeError
         """
 
-        res = self.store.get(name, None)
+        res = self.store.get(name, "")
 
-        if res is None:
+        if res == "":
             return self._raise_invalid_param_error(name, raise_error, default)
 
         if min_len:
@@ -980,7 +980,7 @@ class SARequest(View):
         :rtype: bool
         """
 
-        return len(self.get_string(name, default="")) == 0
+        return len(self.get_string(name, default="")) > 0
 
 
 class SADeleteRequest(SARequest):
