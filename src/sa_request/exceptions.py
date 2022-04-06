@@ -31,7 +31,7 @@ class RequestProcessingErrorBase(Exception):
         :return: JsonResponse
         """
 
-        return JsonResponse({"message": self.message, "param": self.param, "status": self.status})
+        return JsonResponse({"message": self.message, "param": self.param, "status": self.status}, status=self.status)
 
 
 class ParamNotFoundError(RequestProcessingErrorBase):
