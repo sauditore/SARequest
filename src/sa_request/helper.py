@@ -166,6 +166,9 @@ class SARequest(View):
             raise InvalidParamFormatError(name, valid_example)
         return default
 
+    def is_ajax(self):
+        return self.request.META.get("HTTP_X_REQUESTED_WITH", "") == "XMLHttpRequest"
+
     def response_render(self, template_path: str, context: Optional[Dict] = None) -> HttpResponse:
         """
         Return rendered HTML
@@ -202,7 +205,7 @@ class SARequest(View):
         if data is None:
             return self._raise_invalid_param_error(name, raise_error, default)
 
-        rx = re.search(r'\d+', data)
+        rx = re.search(r'(-)?\d+', data)
         if rx is None:
             return self._raise_invalid_param_error(name, raise_error, default)
         res = int(rx.group())
