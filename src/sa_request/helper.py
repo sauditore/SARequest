@@ -934,7 +934,8 @@ class SARequest(View):
             if not is_granter:
                 raise AuthNeedError(request)
 
-    def response_success(self, response: Dict = None) -> JsonResponse:
+    @staticmethod
+    def response_success(response: Dict = None) -> JsonResponse:
         """
         Send response to client with status code 200(OK)
 
@@ -947,7 +948,18 @@ class SARequest(View):
             response = {}
         return JsonResponse(response, status=200)
 
-    def response_error(self, error_message: str, is_json: bool = True, status_code: int = 500, param_name: str="") -> \
+    @staticmethod
+    def response_not_found(error_message: str, param_name: str = "") -> JsonResponse:
+        """
+        Send error_message to user as a json response with status code 404(not found)
+
+        :param error_message:
+        :param param_name:
+        :return:
+        """
+
+    @staticmethod
+    def response_error(error_message: str, is_json: bool = True, status_code: int = 500, param_name: str = "") -> \
             Union[JsonResponse, HttpResponse]:
         """
         Send response to client with an error. This error can be e.g. a json or a text.
@@ -965,7 +977,8 @@ class SARequest(View):
             return JsonResponse({"message": error_message, "param": param_name}, status=500)
         return HttpResponse(error_message, status=status_code)
 
-    def response_redirect(self, address: str) -> Union[HttpResponseRedirect]:
+    @staticmethod
+    def response_redirect(address: str) -> Union[HttpResponseRedirect]:
         """
         Send redirect to user
         :param address: Address to redirect. NOTE: address is not view name!
