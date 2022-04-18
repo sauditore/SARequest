@@ -953,10 +953,13 @@ class SARequest(View):
         """
         Send error_message to user as a json response with status code 404(not found)
 
-        :param error_message:
-        :param param_name:
-        :return:
+        :param error_message: Error message to show to user
+        :param param_name: parameter name that was not exist
+        :return: JsonResponse
+        :rtype: JsonResponse
         """
+
+        return JsonResponse({"message": error_message, "param": param_name}, status=404)
 
     @staticmethod
     def response_error(error_message: str, is_json: bool = True, status_code: int = 500, param_name: str = "") -> \
