@@ -204,11 +204,11 @@ class SARequest(View):
 
         if data is None:
             return self._raise_invalid_param_error(name, raise_error, default)
-
-        rx = re.search(r'(-)?\d+', data)
+        rx = re.sub(r'\D*\s*', "", data)
+        # rx = re.search(r'(-)?\d+', data)
         if rx is None:
             return self._raise_invalid_param_error(name, raise_error, default)
-        res = int(rx.group())
+        res = int(rx)
 
         # Now let's check for min and max values
         if min_value is not None:
