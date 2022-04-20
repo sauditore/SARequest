@@ -508,6 +508,7 @@ class SARequest(View):
         if data is None:
             return self._raise_invalid_param_error(name, raise_error, default)
 
+        data = data.replace(",", "")
         rx = re.findall(r'\d+\.?\d+', data)
         if len(rx) > 0:
             return float(rx[0])
