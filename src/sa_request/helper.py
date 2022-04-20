@@ -1033,7 +1033,13 @@ class SADeleteRequest(SARequest):
         """
         raise NotImplementedError()
 
-    def deleted_success(self, deleted_item):
+    def deleted_success(self, deleted_item: Type) -> None:
+        """
+        When object deleted successfully then this method will called.
+
+        :param deleted_item: deleted object
+        :return: Noting returns
+        """
         pass
     
     def post(self, request) -> HttpResponse:
