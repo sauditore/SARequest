@@ -1032,6 +1032,9 @@ class SADeleteRequest(SARequest):
         :rtype: Dict
         """
         raise NotImplementedError()
+
+    def deleted_success(self, deleted_item):
+        pass
     
     def post(self, request) -> HttpResponse:
         """
@@ -1071,6 +1074,7 @@ class SADeleteRequest(SARequest):
             if not self.auth(object_to_delete):
                 return self.response_error("Permission Denied", status_code=403)
             object_to_delete.delete()
+            self.deleted_success(object_to_delete)
         except Exception:
             return self.response_error("Failed to delete item(s)")
         return self.response_success()
