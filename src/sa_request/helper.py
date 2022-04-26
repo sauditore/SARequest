@@ -446,6 +446,8 @@ class SARequest(View):
         res = []
         for a in i_list:
             z = re.findall(r'\d+', a)
+            if not z:
+                continue
             res.append(int(z[0]))
 
         return res
@@ -490,6 +492,31 @@ class SARequest(View):
             return real_size
         except ValueError:
             return self._raise_format_error(name, "2M 3G", raise_error, default)
+
+    def get_regex(self,
+                  pattern: str,
+                  default_value: Optional[List[str]] = (),
+                  raise_error: Optional[bool] = False
+                  ) -> List[str]:
+        """
+        Find parameters by a regex and returns a list of matched data.
+        It's useful when you want read a list of parameters with a specific name pattern.
+
+        :param pattern: regex pattern to match parameter names
+        :param default_value: default value if noting found
+        :param raise_error: raise error if not result found
+        :return: a list of patched parameters with their values
+        :rtype: List[str]
+        """
+
+        rx = re.compile(pattern, re.IGNORECASE)
+        match_keys = []
+        for k in self.store.keys():
+            if rx.search(k):
+                match_keys.append(k)
+        if not match_keys:
+            return self._raise_object_not_found("", raise_error, default_value)
+        return match_keys
 
     def get_float(self, name: str,
                   raise_error: bool = False,
