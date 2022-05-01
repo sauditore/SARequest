@@ -250,7 +250,7 @@ class SARequest(View):
             if len(res) < min_len:
                 return self._raise_min_max_error(name, raise_error, min_len, max_len, default)
         if max_len:
-            if len(res) < max_len:
+            if len(res) > max_len:
                 return self._raise_min_max_error(name, raise_error, min_len, max_len, default)
         return res
 
@@ -515,7 +515,7 @@ class SARequest(View):
             if rx.search(k):
                 match_keys.append(k)
         if not match_keys:
-            return self._raise_object_not_found("", raise_error, default_value)
+            return self._raise_invalid_param_error("", raise_error, default_value)
         return match_keys
 
     def get_float(self, name: str,
@@ -536,9 +536,9 @@ class SARequest(View):
             return self._raise_invalid_param_error(name, raise_error, default)
 
         data = data.replace(",", "")
-        rx = re.findall(r'\d+\.?\d+', data)
+        rx = re.findall(r'(\d)+(\.?\d+)?', data)
         if len(rx) > 0:
-            return float(rx[0])
+            return float("".join([a[0] + a[1] for a in rx]))
         return self._raise_invalid_param_error(name, raise_error, default)
 
     def get_date(self, name: str,
