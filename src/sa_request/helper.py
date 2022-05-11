@@ -883,7 +883,7 @@ class SARequest(View):
         if original_filename is None:
             original_filename = 'unknown_file'
 
-        fp = codecs.open(str(file_path.encode('utf-8')), 'rb')
+        fp = open(str(file_path), 'rb')
         response = HttpResponse(fp.read())
         fp.close()
         f_type, encoding = mimetypes.guess_type(original_filename)
