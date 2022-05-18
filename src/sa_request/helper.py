@@ -803,7 +803,7 @@ class SARequest(View):
         else:
             today_path = base_path
         if add_user:
-            if not self.request.user.is_authenticated():
+            if not self.request.user.is_authenticated:
 
                 # if user is not authenticated, then use ALL as the name
                 user_path = os.path.join(today_path, 'ALL')
@@ -829,7 +829,7 @@ class SARequest(View):
                 a.close()
                 file_size = os.stat(t).st_size
                 uid = 0
-                if self.request.user.is_authenticated():
+                if self.request.user.is_authenticated:
                     uid = self.request.user.pk
                 res.append(FileUploadResult(uid, today, t, n, file_size))
             except Exception:
