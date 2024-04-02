@@ -6,7 +6,7 @@ There are 2 methods to install this:
 
 1- Install with pip (Recommended and the easiest way)
 ```
-pip install django-sa-request
+pip install django-crud-manager
 ```
 
 2- Install from source code:
@@ -19,13 +19,14 @@ python setup.py install
 To use this library just create a class and inherit from sa_request main class
 
 ```python
-from sa_request.helper import SARequest
-from sa_request.exceptions import ParamNotFoundError, AuthNeedError
+from django_crud_manager import CrudManager, ParamNotFoundError
 
 
-class ViewName(SARequest):
-    
-    def get(self, request):
+class ViewName(CrudManager):
+    def check_perm(self) -> bool:
+        return self.logged_in   # check if the user logged in or not
+
+    def get_request(self):
         # Get int_name from query string
         user_int = self.get_int("int_name", False, 100)
         
@@ -42,12 +43,10 @@ class ViewName(SARequest):
             
             # Checks for user permission. If permission not granted then
             # AuthError will raise
-            self.validate_request(perm="user.add_user")
+            if not self.authorize(perm="user.add_user"):
+                raise Exception("Unauthorized")
         except ParamNotFoundError as e:
             # A response will return to user
-            return e.get_response()
-        except AuthNeedError as e:
-            # redirect user to auth_login view
             return e.get_response()
         # and other logics
 ```
@@ -125,30 +124,31 @@ Result contains these keys:
 
 
 ```python
-def paginate(query_set: Union[List, QuerySet],
-             data_name: str,
-             extra: Dict = None,
-             default_per_page: int = 10)
+def paginate(
+        query_set: Union[List, QuerySet],
+        data_name: str,
+        extra: Dict = None,
+        default_per_page: int = 10)
 ```
 <hr/>
 
 #### get_decrypted_list:
 Process request and find objects by name, decrypt and return in a list
 ```python
-def get_decrypted_list(name: str,
-                       raise_error: bool = False,
-                       default: List = None
-                       ) -> List
+def get_decrypted_list(
+        name: str,
+        raise_error: bool = False,
+        default: List = None) -> List
 ```
 <hr/>
 
 #### get_int_list:
 Process the request and get a list of int
 ```python
-def get_int_list(name: str, 
-                 raise_error: bool = False, 
-                 default: List = ()
-                 ) -> List
+def get_int_list(
+        name: str, 
+        raise_error: bool = False, 
+        default: List = ()) -> List
 ```
 <hr/>
 
@@ -156,10 +156,10 @@ def get_int_list(name: str,
 Convert user input data to file size. e.g. User enters : 1024 MB, you will receive : 1024 * 1024 bytes
 
 ```python
-def get_file_size(name: str,
-                 raise_error: bool = False, 
-                 default: float = 0
-                 ) -> float
+def get_file_size(
+        name: str,
+        raise_error: bool = False, 
+        default: float = 0) -> float
 ```
 <hr/>
 
@@ -167,10 +167,10 @@ def get_file_size(name: str,
 Get "name" as float
 
 ```python
-def get_float(name: str,
-             raise_error: bool = False,
-             default: float = 0.0
-              ) -> float
+def get_float(
+        name: str,
+        raise_error: bool = False,
+        default: float = 0.0) -> float
 ```
 
 <hr/>

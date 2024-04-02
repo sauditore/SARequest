@@ -73,26 +73,7 @@ class InvalidParamFormatError(RequestProcessingErrorBase):
     """
 
     def __init__(self, name, valid_example):
-        super(InvalidParamFormatError, self).__init__(_("Parameter format is not correct."),
-                                                      (valid_example,), name, 500)
-
-
-class AuthNeedError(RequestProcessingErrorBase):
-    """
-    Occurs when user is not logged-in or permission is not enough
-    """
-
-    def __init__(self, request):
-        """
-        Occurs when user is not logged-in or permission is not enough
-        :param request: Django request
-        """
-        self.request = request
-        super(AuthNeedError, self).__init__("Use must login to view this resource", (), "", 401)
-
-    def get_response(self):
-        self.request.session['return_login_address'] = self.request.get_full_path()
-        return redirect(reverse('auth_login'))
+        super(InvalidParamFormatError, self).__init__(_("Parameter format is not correct."),                                                      (valid_example,), name, 500)
 
 
 class ObjectNotFoundError(RequestProcessingErrorBase):

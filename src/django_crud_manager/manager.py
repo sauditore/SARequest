@@ -40,6 +40,44 @@ class CrudManager(ManagerBase):
     Class to handle generic requests
     """
 
+    def authorize(
+            self,
+            authenticate: bool = False,
+            perm: str = "",
+            staff: bool = False,
+            superuser: bool = False) -> bool:
+        """
+        Validate request against referer, auth, and permissions.
+
+        :param authenticate: Check if the user is authenticated or not.
+        :param perm: Checks for a specified permission. Multi perm can be separated with a pip ( | )
+        :param staff: Check if the user is staff or not. if not RequestValidationError will raise
+        :param superuser: Check if the user is superuser or not. If not RequestValidationError will raise
+        :return: True if the user passes validation, False otherwise
+
+        >>>self.authorize(staff=True, perm="user.add_user|user.change_user")
+        """
+
+        if authenticate and not self.user.is_authenticated:
+            return False
+        if superuser and not self.user.is_superuser:
+            return False
+        if staff and not self.user.is_staff:
+            return False
+
+        # Check for permissions
+        if perm:
+            perms = perm.split('|')
+            is_granter = False
+            for p in perms:
+                if self.user.has_perm(p):
+                    is_granter = True
+                    break
+            if not is_granter:
+                return False
+
+        return True
+
     def authorize_delete(self, object_to_delete: Type) -> bool:
         """
         Authenticate user when delete is called.
@@ -135,7 +173,7 @@ class CrudManager(ManagerBase):
 
     def get(self, __, **kwargs) -> HttpResponse:
         """
-        Get
+        Calls when a get request is made.
         """
         if not self.check_perm():
             if self.is_api_call():
@@ -150,24 +188,42 @@ class CrudManager(ManagerBase):
         return self.get_request(**kwargs)
 
     def handle_get_api_call(self, **kwargs) -> HttpResponse:
+        """
+        Calls when a get request is made with ?api_call parameter is query string.
+        """
         raise NotImplementedError(API_CALLS_NOT_SUPPORTED)
 
     def handle_post_api_call(self, **kwargs) -> HttpResponse:
+        """
+        Calls when a post request is made with ?api_call in the query_string
+        """
         raise NotImplementedError(API_CALLS_NOT_SUPPORTED)
 
     def get_request(self, **kwargs) -> HttpResponse:
+        """
+        The base api will call this method after validations
+        """
         raise NotImplementedError(INVALID_REQUEST_METHOD)
 
     def patch(self, __, **kwargs) -> HttpResponse:
+        """
+        Calls when a patch request is made
+        """
         if not self.check_perm():
             return self.response_error(_(ACCESS_DENIED))
 
         return self.patch_request(**kwargs)
 
     def patch_request(self, **kwargs) -> HttpResponse:
+        """
+        Calls when a patch request is made after validation
+        """
         raise NotImplementedError(INVALID_REQUEST_METHOD)
 
     def post(self, request, **kwargs) -> HttpResponse:
+        """
+        Calls when a post request is made
+        """
         if not self.check_perm():
             return self.response_error(_(ACCESS_DENIED))
 
@@ -177,24 +233,57 @@ class CrudManager(ManagerBase):
         return self.post_request(**kwargs)
 
     def post_request(self, **kwargs) -> HttpResponse:
+        """
+        Calls when a post request is made
+        """
         raise NotImplementedError(INVALID_REQUEST_METHOD)
 
     def put(self, __, **kwargs) -> HttpResponse:
+        """
+        Calls when a put request is made
+        """
         if not self.check_perm():
             return self.response_render(_(ACCESS_DENIED))
 
         return self.put_request(**kwargs)
 
     def put_request(self, **kwargs) -> HttpResponse:
+        """
+        Calls when a put request is made after validation
+        """
         raise NotImplementedError(INVALID_REQUEST_METHOD)
 
     def is_ajax(self):
+        """
+        Indicates if the request is an ajax request
+        """
         return self.request.META.get("HTTP_X_REQUESTED_WITH", "") == "XMLHttpRequest"
 
     def is_api_call(self):
+        """
+        Indicates if the request is needs api call or needs json response
+        """
         return self.request.GET.get("api_call", "0") == "1"
 
     def map_to_class(self, obj: Type[BaseModel], from_body: bool = False) -> BaseModel:
+        """
+        Maps the request body to the given pydantic base model.
+        :param obj: The model you want to map
+        :param from_body: Indicates if the data should be read as str from body, Useful when making put requests
+        :return: A pydantic basemodel
+
+        >>>from pydantic import BaseModel, Field
+        >>>class EditUserData(BaseModel):
+        >>>     first_name: str = Field()
+        >>>     last_name: str = Field()
+        >>># Think a post request with these parameters are made:
+        >>># firstName=name&lastName=LastName
+        >>># Please be careful with the pascal case of the parameters
+        >>>user_data = self.map_to_class(EditUserData)
+
+        There are some limitations like file uploads. But with normal fields works perfectly.
+        If you define request_user_id in your pydantic model, then the mapper will add user id to it automatically
+        """
         to_map = {}
         schema = obj.schema()["properties"]
 
@@ -309,7 +398,6 @@ class CrudManager(ManagerBase):
         :param file_path: File path to read
         :param original_filename:  Original name of the file
         :return: HttpResponse
-        :rtype: HttpResponse
         """
 
         if original_filename is None:
@@ -340,44 +428,6 @@ class CrudManager(ManagerBase):
             filename_header = f"filename*=UTF-8\'\'{original_filename}"
         response["Content-Disposition"] = f"attachment; {filename_header}"
         return response
-
-    def authorize(
-            self,
-            auth: bool = False,
-            superuser: bool = False,
-            staff: bool = False,
-            perm: str = "") -> bool:
-        """
-        Validate request against referer, auth, and permissions.
-        E.g. validate_request(staff=True, perm="user.add_user|user.change_user")
-
-        :param auth: Check if the user is authenticated or not. if not AuthenticationNeededError will raise
-        :param superuser: Check if the user is superuser or not. If not RequestValidationError will raise
-        :param staff: Check if the user is staff or not. if not RequestValidationError will raise
-        :param perm: Checks for a specified permission. Multi perm can be separated with a pip ( | )
-        :return: None
-        """
-
-        request = self.request
-        if auth and not request.user.is_authenticated:
-            return False
-        if superuser and not request.user.is_superuser:
-            return False
-        if staff and not request.user.is_staff:
-            return False
-
-        # Check for permissions
-        if perm:
-            perms = perm.split('|')
-            is_granter = False
-            for p in perms:
-                if request.user.has_perm(p):
-                    is_granter = True
-                    break
-            if not is_granter:
-                return False
-
-        return True
 
     @staticmethod
     def response_success(response: Dict = None) -> JsonResponse:
@@ -498,68 +548,3 @@ class CrudManager(ManagerBase):
             else:
                 final_key += c
         return final_key
-
-
-class ACrudManager(CrudManager):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.request_kwargs = {}
-
-    @property
-    def base_db_class(self) -> Type[Model]:
-        raise NotImplementedError("Need to define the DB Mold")
-
-    def config(self) -> Dict[str, Any]:
-        return self.get_config(self.base_db_class)
-
-    @property
-    def template(self) -> (str, str):
-        raise NotImplementedError("Need to return the template name")
-
-    @property
-    def request_model(self) -> Type[BaseModel]:
-        raise NotImplementedError("Need to define the request model")
-
-    def validate_post_data(self, data) -> ActionResult:
-        return ActionResult.success()
-
-    def clear_post_data(self, data):
-        return data.dict()
-
-    def post_action_completed(self, data):
-        pass
-
-    @property
-    def template_extra_context(self) -> Dict[str, Any]:
-        return {}
-
-    def get_request(self, **kwargs) -> HttpResponse:
-        self.request_kwargs = kwargs
-        data = self.search(**kwargs)
-        template_address, data_name = self.template
-        paged = self.paginate(data, data_name, self.template_extra_context)
-        return self.response_render(template_address, paged)
-
-    def post_request(self, **kwargs) -> HttpResponse:
-        try:
-            mapped_data = self.map_to_class(self.request_model)
-        except ValidationError as e:
-            return self.validation_error_response(e)
-
-        self.request_kwargs = kwargs
-        validation_result = self.validate_post_data(mapped_data)
-
-        if validation_result.is_success:
-            clear_data = self.clear_post_data(mapped_data)
-            new_object = self.base_db_class.create_new(mapped_data.request_user_id, **clear_data)
-            self.post_action_completed(new_object)
-            return self.response_success()
-
-        return self.response_error(validation_result.message)
-
-    def search(self, **kwargs):
-        return self.base_db_class.objects.filter()
-
-    @property
-    def validate_data_request(self):
-        return self.request.GET.get("isValidation") == "1"

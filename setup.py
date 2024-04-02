@@ -5,11 +5,11 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 
 setuptools.setup(
-    name="django-sa-request",
-    version="0.9.1b",
+    name="django-crud-manager",
+    version="0.10",
     author="Amir Pourjafari",
     author_email="amir.pourjafari@gmail.com",
-    description="Django Simple Processor",
+    description="Django Crudd Manager",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/sauditore/SARequest/",
@@ -24,5 +24,5 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-    install_requires=["khayyam", "django"]
+    install_requires=["khayyam", "django", "pydantic"]
 )
